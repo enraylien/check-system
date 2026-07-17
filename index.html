@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="支票系統"/>
+<meta name="theme-color" content="#6366f1"/>
+<title>蘊睿支票系統</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icons/icon-192.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#0f172a;--bg2:#1e293b;--glass:rgba(30,41,59,.85);--glass2:rgba(255,255,255,.06);
+  --accent:#818cf8;--accentS:rgba(129,140,248,.15);
+  --gold:#fbbf24;--goldS:rgba(251,191,36,.15);
+  --circ:#38bdf8;--circS:rgba(56,189,248,.12);
+  --done:#4ade80;--doneS:rgba(74,222,128,.12);
+  --void:#f87171;--voidS:rgba(248,113,113,.12);
+  --recall:#fb923c;--recallS:rgba(251,146,60,.12);
+  --urgent:#ef4444;--urgentS:rgba(239,68,68,.15);
+  --warn:#f97316;--warnS:rgba(249,115,22,.12);
+  --txt:#f1f5f9;--txt2:#94a3b8;--txt3:#64748b;
+  --border:rgba(255,255,255,.08);--borderF:rgba(129,140,248,.5);
+  --r:16px;--r2:10px;--r3:6px;
+  --nav:68px;--hdr:68px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;scroll-behavior:smooth}
+body{
+  font-family:'Noto Sans TC',-apple-system,sans-serif;
+  background:var(--bg);color:var(--txt);
+  min-height:100dvh;overflow-x:hidden;
+  padding-bottom:calc(var(--nav)+20px);
+  padding-top:env(safe-area-inset-top);
+}
+body::before{content:'';position:fixed;top:-50%;left:-20%;width:60%;height:60%;
+  background:radial-gradient(circle,rgba(99,102,241,.15) 0%,transparent 70%);
+  pointer-events:none;z-index:0}
+.hdr{position:sticky;top:0;z-index:100;background:rgba(15,23,42,.92);
+  backdrop-filter:blur(20px);border-bottom:1px solid var(--border);
+  padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top))}
+.hdr-inner{display:flex;align-items:center;justify-content:space-between;max-width:640px;margin:0 auto}
+.hdr-left{display:flex;align-items:center;gap:10px}
+.hdr-icon{font-size:28px}
+.hdr-title{font-size:18px;font-weight:700;background:linear-gradient(135deg,#818cf8,#fbbf24);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hdr-sub{font-size:11px;color:var(--txt3)}
+.btn-icon{width:40px;height:40px;border-radius:50%;background:var(--glass2);border:1px solid var(--border);
+  color:var(--txt2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.2s}
+.btn-icon:active{transform:scale(.9)}
+.btn-icon svg{width:18px;height:18px}
+.dash{padding:14px 16px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(251,191,36,.05));
+  border-bottom:1px solid var(--border)}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.stat-card{background:var(--glass2);border:1px solid var(--border);border-radius:var(--r2);
+  padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;
+  cursor:pointer;transition:.2s;text-align:center}
+.stat-card:active{transform:scale(.95)}
+.stat-card.su{border-color:rgba(239,68,68,.3);background:var(--urgentS)}
+.stat-card.sw{border-color:rgba(249,115,22,.3);background:var(--warnS)}
+.stat-card.sc{border-color:rgba(56,189,248,.3);background:var(--circS)}
+.stat-card.so{border-color:rgba(248,113,113,.25);background:rgba(248,113,113,.08)}
+.stat-icon{font-size:18px}.stat-num{font-size:20px;font-weight:700;line-height:1}.stat-label{font-size:10px;color:var(--txt2);white-space:nowrap}
+.stat-card.su .stat-num{color:var(--urgent)}.stat-card.sw .stat-num{color:var(--warn)}.stat-card.sc .stat-num{color:var(--circ)}.stat-card.so .stat-num{color:#f87171}
+.total-amt{background:linear-gradient(135deg,rgba(251,191,36,.1),rgba(129,140,248,.1));
+  border:1px solid rgba(251,191,36,.2);border-radius:var(--r2);
+  padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+.amt-label{font-size:13px;color:var(--txt2)}.amt-val{font-size:18px;font-weight:700;color:var(--gold)}
+.filter-bar{position:sticky;top:var(--hdr);z-index:90;background:rgba(15,23,42,.95);
+  backdrop-filter:blur(16px);padding:12px 16px 10px;border-bottom:1px solid var(--border)}
+.search-box{position:relative;margin-bottom:10px}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--txt3)}
+.search-box input{width:100%;padding:10px 36px 10px 40px;background:var(--glass2);
+  border:1px solid var(--border);border-radius:24px;color:var(--txt);font-size:14px;font-family:inherit}
+.search-box input:focus{outline:none;border-color:var(--borderF)}
+.search-box input::placeholder{color:var(--txt3)}
+.clear-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px}
+.filter-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.filter-tabs::-webkit-scrollbar{display:none}
+.filter-tab{flex-shrink:0;padding:6px 14px;background:var(--glass2);border:1px solid var(--border);
+  border-radius:20px;color:var(--txt2);font-size:12px;font-family:inherit;cursor:pointer;transition:.2s;white-space:nowrap}
+.filter-tab.active{background:var(--accentS);border-color:var(--accent);color:var(--accent);font-weight:600}
+.main{padding:12px 16px;max-width:640px;margin:0 auto}
+.list-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.list-count{font-size:13px;color:var(--txt2)}
+.sort-wrap{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt3)}
+.sort-wrap select{background:var(--glass2);border:1px solid var(--border);border-radius:var(--r3);
+  color:var(--txt2);font-size:12px;font-family:inherit;padding:4px 8px;cursor:pointer}
+.alert-banner{background:linear-gradient(135deg,var(--urgentS),rgba(249,115,22,.15));
+  border:1px solid rgba(239,68,68,.4);border-radius:var(--r2);
+  padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:14px;
+  animation:pulseBorder 2s ease-in-out infinite}
+@keyframes pulseBorder{0%,100%{border-color:rgba(239,68,68,.4)}50%{border-color:rgba(239,68,68,.8)}}
+.alert-icon{font-size:20px;flex-shrink:0}
+.check-list{display:flex;flex-direction:column;gap:10px}
+/* check-card matches app.js renderCheckCard */
+.check-card{background:var(--glass);border:1px solid var(--border);border-radius:var(--r);
+  padding:14px 16px;cursor:pointer;transition:.2s;position:relative;overflow:hidden;
+  backdrop-filter:blur(8px);animation:fadeIn .3s ease backwards}
+.check-card:active{transform:scale(.98)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.check-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:var(--r) 0 0 var(--r)}
+.check-card.status-circulating::before{background:var(--circ)}
+.check-card.status-done::before{background:var(--done)}
+.check-card.status-void::before{background:var(--void)}
+.check-card.status-recall::before{background:var(--recall)}
+.check-card.urgency-critical{border-color:rgba(239,68,68,.5);box-shadow:0 0 16px rgba(239,68,68,.15)}
+.check-card.urgency-urgent{border-color:rgba(249,115,22,.4);box-shadow:0 0 12px rgba(249,115,22,.1)}
+.card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.card-main-info{flex:1;min-width:0}
+.card-payee{font-size:16px;font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.card-check-no{font-size:11px;color:var(--txt3);font-family:monospace}
+.card-amount{font-size:18px;font-weight:700;color:var(--gold);text-align:right;white-space:nowrap}
+.card-amount-cn{font-size:10px;color:var(--txt3);text-align:right}
+.card-details{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.card-detail-item{display:flex;flex-direction:column;gap:2px}
+.detail-label{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px}
+.detail-value{font-size:12px;color:var(--txt2)}
+.card-notes{margin-top:8px;font-size:12px;color:var(--txt3);padding:6px 10px;background:rgba(255,255,255,.03);border-radius:var(--r3);border-left:2px solid var(--border)}
+/* badges */
+.status-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge-circulating{background:var(--circS);color:var(--circ);border:1px solid rgba(56,189,248,.3)}
+.badge-done{background:var(--doneS);color:var(--done);border:1px solid rgba(74,222,128,.3)}
+.badge-void{background:var(--voidS);color:var(--void);border:1px solid rgba(248,113,113,.3)}
+.badge-recall{background:var(--recallS);color:var(--recall);border:1px solid rgba(251,146,60,.3)}
+.due-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.due-critical{background:var(--urgentS);color:#fca5a5;border:1px solid rgba(239,68,68,.4);animation:pulseText 1.5s ease-in-out infinite}
+.due-urgent{background:var(--warnS);color:#fdba74;border:1px solid rgba(249,115,22,.4)}
+.due-warning{background:rgba(234,179,8,.12);color:#fde047;border:1px solid rgba(234,179,8,.3)}
+.due-ok{background:rgba(34,197,94,.12);color:#86efac;border:1px solid rgba(34,197,94,.3)}
+.due-overdue{background:rgba(127,29,29,.3);color:#fca5a5;border:1px solid rgba(239,68,68,.6)}
+@keyframes pulseText{0%,100%{opacity:1}50%{opacity:.6}}
+.holder-tag{display:inline-flex;padding:2px 8px;background:var(--accentS);border-radius:12px;font-size:11px;color:var(--accent);border:1px solid rgba(129,140,248,.3)}
+.fab{position:fixed;bottom:calc(var(--nav)+12px+env(safe-area-inset-bottom));right:20px;
+  width:58px;height:58px;border-radius:50%;
+  background:linear-gradient(135deg,#6366f1,#818cf8);border:none;color:#fff;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  box-shadow:0 4px 20px rgba(99,102,241,.5);z-index:200;transition:.2s}
+.fab:active{transform:scale(.9)}
+.fab svg{width:28px;height:28px}
+.bnav{position:fixed;bottom:0;left:0;right:0;
+  height:calc(var(--nav)+env(safe-area-inset-bottom));
+  padding-bottom:env(safe-area-inset-bottom);
+  background:rgba(15,23,42,.96);backdrop-filter:blur(20px);
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-around;z-index:100}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 16px;background:none;border:none;color:var(--txt3);
+  font-size:10px;font-family:inherit;cursor:pointer;transition:.2s;border-radius:var(--r2);min-width:56px}
+.nav-item svg{width:22px;height:22px}.nav-item.active{color:var(--accent)}.nav-item.ph{pointer-events:none;width:56px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);
+  z-index:300;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.active{opacity:1;pointer-events:all}
+.sheet{background:var(--bg2);border-radius:var(--r) var(--r) 0 0;width:100%;max-width:640px;
+  margin:0 auto;max-height:92dvh;display:flex;flex-direction:column;
+  transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);
+  border:1px solid var(--border);border-bottom:none}
+.sheet::before{content:'';display:block;width:36px;height:4px;background:var(--txt3);border-radius:2px;margin:12px auto 0;flex-shrink:0}
+.overlay.active .sheet{transform:translateY(0)}
+.sheet-lg{max-height:95dvh}
+.m-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.m-hdr h2{font-size:18px;font-weight:700}
+.btn-close{width:32px;height:32px;border-radius:50%;background:var(--glass2);border:1px solid var(--border);color:var(--txt2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.m-body{flex:1;overflow-y:auto;padding:16px 20px;-webkit-overflow-scrolling:touch}
+.m-foot{display:flex;gap:10px;padding:12px 20px;padding-bottom:max(12px,env(safe-area-inset-bottom));border-top:1px solid var(--border);flex-shrink:0}
+.fg{margin-bottom:16px}
+.fg label{display:block;font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:6px}
+.fg input,.fg textarea,.fg select{width:100%;padding:11px 14px;background:rgba(15,23,42,.6);border:1px solid var(--border);border-radius:var(--r2);color:var(--txt);font-size:15px;font-family:inherit;transition:.2s;-webkit-appearance:none}
+.fg input:focus,.fg textarea:focus{outline:none;border-color:var(--borderF)}
+.fg input::placeholder,.fg textarea::placeholder{color:var(--txt3);font-size:13px}
+.fg textarea{resize:vertical;min-height:64px}
+.hint{display:block;font-size:11px;color:var(--txt3);margin-top:4px}
+.amt-grp{display:flex;align-items:center;background:rgba(15,23,42,.6);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden}
+.amt-grp:focus-within{border-color:var(--borderF)}
+.curr{padding:11px 12px;color:var(--gold);font-weight:600;font-size:14px;border-right:1px solid var(--border);background:rgba(251,191,36,.06)}
+.amt-grp input{border:none!important;background:transparent!important;flex:1}
+.cn-preview{margin-top:5px;font-size:13px;color:var(--gold);font-style:italic;min-height:18px}
+.status-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:6px}
+.status-btn{padding:10px;border-radius:var(--r2);border:1px solid var(--border);background:var(--glass2);color:var(--txt2);font-size:13px;font-family:inherit;cursor:pointer;transition:.2s;text-align:center}
+.status-btn.active{border-color:var(--accent);background:var(--accentS);color:var(--accent);font-weight:600}
+.qbtn-row{display:flex;gap:6px;margin-bottom:8px}
+.quick-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--glass2);color:var(--txt2);font-size:13px;font-family:inherit;cursor:pointer;transition:.2s}
+.quick-btn:active{background:var(--accentS);border-color:var(--accent);color:var(--accent)}
+.btn-p{flex:1;padding:13px;background:linear-gradient(135deg,#6366f1,#818cf8);border:none;border-radius:var(--r2);color:#fff;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,.3);transition:.2s}
+.btn-p:active{transform:scale(.97)}
+.btn-s{padding:13px 16px;background:var(--glass2);border:1px solid var(--border);border-radius:var(--r2);color:var(--txt2);font-size:14px;font-family:inherit;cursor:pointer;transition:.2s}
+#btnDeleteCheck{color:#f87171;border-color:rgba(248,113,113,.3)}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.detail-item{padding:10px 12px;background:var(--glass2);border-radius:var(--r3);border:1px solid var(--border)}
+.detail-item.full-width{grid-column:1/-1}
+.detail-item .detail-label{font-size:11px;color:var(--txt3);margin-bottom:3px}
+.detail-item .detail-value{font-size:14px;color:var(--txt)}
+.stats-section{margin-bottom:24px}.stats-section h3{font-size:13px;color:var(--txt3);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+.holder-list{display:flex;flex-direction:column;gap:8px}
+.holder-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--glass2);border-radius:var(--r2);border:1px solid var(--border)}
+.holder-name{font-size:15px;color:var(--txt)}
+.amount-bar-container{height:5px;background:var(--border);border-radius:3px;margin-top:6px;overflow:hidden}
+.amount-bar{height:100%;border-radius:3px;background:linear-gradient(90deg,#6366f1,#fbbf24);transition:width .6s cubic-bezier(.4,0,.2,1)}
+.holder-info{text-align:right}
+.holder-amount{font-size:14px;font-weight:600;color:var(--gold);display:block}
+.holder-count{font-size:11px;color:var(--txt3);display:block}
+.expiring-section{margin-bottom:18px}
+.expiring-section h3{font-size:13px;font-weight:700;color:var(--txt3);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.expiring-empty{padding:40px;text-align:center;color:var(--txt3)}
+.set-sec{margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border)}.set-sec:last-child{border-bottom:none}.set-sec h3{font-size:15px;font-weight:700;margin-bottom:14px}
+.set-info{font-size:12px;color:var(--txt3);margin-top:8px;line-height:1.6}
+.loading-spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px;color:var(--txt3)}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty-state{display:flex;flex-direction:column;align-items:center;padding:60px 20px;gap:12px;text-align:center}
+.empty-icon{font-size:52px;opacity:.3}.empty-title{font-size:17px;font-weight:600;color:var(--txt2)}.empty-sub{font-size:13px;color:var(--txt3);line-height:1.6}
+.toast-container{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:500;display:flex;flex-direction:column;gap:8px;pointer-events:none;width:min(90%,360px)}
+.toast{padding:12px 18px;border-radius:var(--r2);font-size:14px;font-weight:500;animation:slideIn .3s ease,fadeOut .3s ease 2.5s forwards;pointer-events:all;display:flex;align-items:center;gap:10px;backdrop-filter:blur(16px)}
+.toast-success{background:rgba(34,197,94,.2);border:1px solid rgba(34,197,94,.4);color:#86efac}
+.toast-error{background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.4);color:#fca5a5}
+.toast-info{background:rgba(99,102,241,.2);border:1px solid rgba(99,102,241,.4);color:#c7d2fe}
+.toast-warning{background:var(--warnS);border:1px solid rgba(249,115,22,.4);color:#fdba74}
+@keyframes slideIn{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes fadeOut{from{opacity:1}to{opacity:0;transform:translateY(-8px)}}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <div class="hdr-inner">
+    <div class="hdr-left">
+      <span class="hdr-icon">🏦</span>
+      <div><div class="hdr-title">支票系統</div><div class="hdr-sub">蘊睿的流通管理</div></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-icon" id="btnSync" title="同步">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
+      <button class="btn-icon" id="btnRefresh" title="重新整理（清快取）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<section class="dash">
+  <div class="stats-grid">
+    <div class="stat-card su" id="statUrgent"><div class="stat-icon">🔴</div><span class="stat-num" id="urgentCount">-</span><span class="stat-label">7天到期</span></div>
+    <div class="stat-card sw" id="statWarning"><div class="stat-icon">🟠</div><span class="stat-num" id="warningCount">-</span><span class="stat-label">30天到期</span></div>
+    <div class="stat-card sc" id="statCirculating"><div class="stat-icon">⏳</div><span class="stat-num" id="circulatingCount">-</span><span class="stat-label">流通中</span></div>
+    <div class="stat-card so" id="statOverdue"><div class="stat-icon">⚠️</div><span class="stat-num" id="overdueCount">-</span><span class="stat-label">已過期</span></div>
+  </div>
+  <div class="total-amt"><span class="amt-label">流通中總金額</span><span class="amt-val" id="circulatingAmount">載入中...</span></div>
+</section>
+
+<section class="filter-bar">
+  <div class="search-box">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="searchInput" placeholder="搜尋受款人、支票號碼..."/>
+    <button class="clear-btn" id="btnClearSearch" style="display:none">✕</button>
+  </div>
+  <div class="filter-tabs">
+    <button class="filter-tab active" data-filter="all">全部</button>
+    <button class="filter-tab" data-filter="⏳ 流通中">⏳ 流通中</button>
+    <button class="filter-tab" data-filter="urgent">🔴 急</button>
+    <button class="filter-tab" data-filter="✅ 已入帳">✅ 已入帳</button>
+    <button class="filter-tab" data-filter="❌ 作廢">❌ 作廢</button>
+    <button class="filter-tab" data-filter="♻️收回流出">♻️ 收回</button>
+  </div>
+</section>
+
+<main class="main">
+  <div class="list-hdr">
+    <span class="list-count" id="listCount">載入中...</span>
+    <div class="sort-wrap"><label>排序：</label>
+      <select id="sortSelect">
+        <option value="urgency">⚡ 緊急程度</option>
+        <option value="dueDate_asc">到期日↑</option>
+        <option value="dueDate_desc">到期日↓</option>
+        <option value="amount_desc">金額↓</option>
+        <option value="payee">受款人</option>
+      </select>
+    </div>
+  </div>
+  <div class="alert-banner" id="alertBanner" style="display:none">
+    <span class="alert-icon">🚨</span><span id="alertText"></span>
+  </div>
+  <div class="check-list" id="checkList"><div class="loading-spinner"><div class="spinner"></div><p>載入支票資料中...</p></div></div>
+</main>
+
+<button class="fab" id="btnAdd">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<nav class="bnav">
+  <button class="nav-item active" data-page="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>主頁</span></button>
+  <button class="nav-item" data-page="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>統計</span></button>
+  <button class="nav-item ph" style="pointer-events:none;width:56px"></button>
+  <button class="nav-item" data-page="expiring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>到期</span></button>
+  <button class="nav-item" data-page="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg><span>設定</span></button>
+</nav>
+
+<!-- Edit / Check Modal -->
+<div class="overlay" id="checkModal">
+  <div class="sheet">
+    <div class="m-hdr"><h2 id="modalTitle">新增支票</h2><button class="btn-close" id="btnModalClose">✕</button></div>
+    <div class="m-body">
+      <input type="hidden" id="editRowIndex"/>
+      <input type="hidden" id="formStatus" value="⏳ 流通中"/>
+      <div class="fg"><label>狀態</label>
+        <div class="status-grid">
+          <button type="button" class="status-btn active" data-status="⏳ 流通中">⏳ 流通中</button>
+          <button type="button" class="status-btn" data-status="✅ 已入帳">✅ 已入帳</button>
+          <button type="button" class="status-btn" data-status="❌ 作廢">❌ 作廢</button>
+          <button type="button" class="status-btn" data-status="♻️收回流出">♻️ 收回</button>
+        </div>
+      </div>
+      <div class="fg"><label>支票號碼</label><input type="text" id="formCheckNo" placeholder="NO. AJ0224235 或 (601)"/></div>
+      <div class="fg"><label>到期日 *</label><input type="date" id="formDueDate" required/><span class="hint">民國114年=西元2025年</span></div>
+      <div class="fg"><label>受款人</label><input type="text" id="formPayee" placeholder="張董、阿達..." list="payeeList"/><datalist id="payeeList"></datalist></div>
+      <div class="fg"><label>金額</label>
+        <div class="amt-grp"><span class="curr">NT$</span><input type="number" id="formAmount" placeholder="1000000" min="0"/></div>
+        <div class="cn-preview" id="amountCNDisplay"></div>
+      </div>
+      <div class="fg"><label>大寫金額</label><input type="text" id="formAmountCN" placeholder="自動換算"/></div>
+      <div class="fg"><label>使用者</label>
+        <div class="qbtn-row">
+          <button type="button" class="quick-btn" data-target="formUser" data-value="聖錩">聖錩</button>
+          <button type="button" class="quick-btn" data-target="formUser" data-value="老婆">老婆</button>
+        </div>
+        <input type="text" id="formUser" placeholder="聖錩 / 老婆"/>
+      </div>
+      <div class="fg"><label>目前票交給誰</label><input type="text" id="formHolder" placeholder="持票人" list="holderList"/><datalist id="holderList"></datalist></div>
+      <div class="fg"><label>開票日期</label><input type="date" id="formIssueDate"/></div>
+      <div class="fg"><label>兌現日期</label><input type="date" id="formCashDate"/></div>
+      <div class="fg"><label>延後至 / 押票</label><input type="text" id="formDeferTo" placeholder="延後(押)、115/03/26(押)..."/></div>
+      <div class="fg"><label>備註</label><textarea id="formNotes" placeholder="其他說明..."></textarea></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn-s" id="btnDeleteCheck" style="display:none">🗑 刪除</button>
+      <button class="btn-p" id="btnSaveCheck">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="overlay" id="detailModal">
+  <div class="sheet">
+    <div class="m-hdr"><h2>支票詳情</h2><button class="btn-close" id="btnDetailClose">✕</button></div>
+    <div class="m-body" id="detailBody"></div>
+    <div class="m-foot">
+      <button class="btn-s" id="btnDetailEdit">✏️ 編輯</button>
+      <button class="btn-p" id="btnDetailClose2">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Page -->
+<div class="overlay" id="statsPage">
+  <div class="sheet sheet-lg">
+    <div class="m-hdr"><h2>📊 統計分析</h2><button class="btn-close" onclick="closePage('statsPage')">✕</button></div>
+    <div class="m-body" id="statsContent"></div>
+  </div>
+</div>
+
+<!-- Expiring Page -->
+<div class="overlay" id="expiringPage">
+  <div class="sheet sheet-lg">
+    <div class="m-hdr"><h2>⏰ 到期提醒</h2><button class="btn-close" onclick="closePage('expiringPage')">✕</button></div>
+    <div class="m-body" id="expiringContent"></div>
+  </div>
+</div>
+
+<!-- Settings Page -->
+<div class="overlay" id="settingsPage">
+  <div class="sheet sheet-lg">
+    <div class="m-hdr"><h2>⚙️ 設定</h2><button class="btn-close" onclick="closePage('settingsPage')">✕</button></div>
+    <div class="m-body">
+      <div class="set-sec"><h3>API 網址</h3>
+        <div class="fg"><label>Google Apps Script 網址</label><input type="url" id="settingApiUrl" placeholder="https://script.google.com/macros/s/..."/></div>
+        <button class="btn-p" onclick="saveSettings()" style="width:100%">💾 儲存設定</button>
+      </div>
+      <div class="set-sec"><h3>警示天數</h3>
+        <div class="fg"><label>緊急（幾天內算急）</label><input type="number" id="settingUrgentDays" value="7" min="1" max="30"/></div>
+        <div class="fg"><label>一般警示（幾天內）</label><input type="number" id="settingWarnDays" value="30" min="1" max="90"/></div>
+        <button class="btn-p" onclick="saveAlertSettings()" style="width:100%;margin-top:8px">💾 儲存警示設定</button>
+      </div>
+      <div class="set-sec"><h3>快取管理</h3>
+        <p class="set-info" id="cacheInfo">目前無快取資料</p>
+        <button class="btn-s" onclick="clearCache();showToast('🗑 快取已清除','info')" style="width:100%;margin-top:8px">🗑 清除快取</button>
+      </div>
+      <div class="set-sec"><h3>關於</h3><p class="set-info">蘊睿的支票流通查詢系統 v2.0<br>由 Google Apps Script 提供服務<br>資料直接存取 Google Sheets（enraylien@gmail.com）</p></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+<script src="app.js"></script>
+</body>
+</html>
