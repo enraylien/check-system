@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="支票系統"/>
 <meta name="theme-color" content="#6366f1"/>
-<title>蘊睿支票系統</title>
+<title>馭睿支票系統</title>
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icons/icon-192.png"/>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
@@ -105,6 +105,7 @@ body::before{content:'';position:fixed;top:-50%;left:-20%;width:60%;height:60%;
 @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 .check-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:var(--r) 0 0 var(--r)}
 .check-card.status-circulating::before{background:var(--circ)}
+.check-card.status-pressed::before{background:#a78bfa}
 .check-card.status-done::before{background:var(--done)}
 .check-card.status-void::before{background:var(--void)}
 .check-card.status-recall::before{background:var(--recall)}
@@ -127,6 +128,7 @@ body::before{content:'';position:fixed;top:-50%;left:-20%;width:60%;height:60%;
 .badge-done{background:var(--doneS);color:var(--done);border:1px solid rgba(74,222,128,.3)}
 .badge-void{background:var(--voidS);color:var(--void);border:1px solid rgba(248,113,113,.3)}
 .badge-recall{background:var(--recallS);color:var(--recall);border:1px solid rgba(251,146,60,.3)}
+.badge-pressed{background:var(--accentS);color:#c4b5fd;border:1px solid rgba(167,139,250,.35)}
 .due-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
 .due-critical{background:var(--urgentS);color:#fca5a5;border:1px solid rgba(239,68,68,.4);animation:pulseText 1.5s ease-in-out infinite}
 .due-urgent{background:var(--warnS);color:#fdba74;border:1px solid rgba(249,115,22,.4)}
@@ -194,6 +196,17 @@ body::before{content:'';position:fixed;top:-50%;left:-20%;width:60%;height:60%;
 .detail-item.full-width{grid-column:1/-1}
 .detail-item .detail-label{font-size:11px;color:var(--txt3);margin-bottom:3px}
 .detail-item .detail-value{font-size:14px;color:var(--txt)}
+.attachment-panel{margin-top:16px;padding:13px;border:1px solid var(--border);border-radius:var(--r2);background:rgba(15,23,42,.42)}
+.attachment-panel strong,.attachment-panel span{display:block}.attachment-panel strong{font-size:14px}.attachment-panel .attachment-sub{margin-top:3px;color:var(--txt3);font-size:11px}
+.attachment-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.attachment-action{position:relative;padding:9px 12px;border:1px solid rgba(129,140,248,.45);border-radius:var(--r2);background:rgba(129,140,248,.12);color:#c7d2fe;font:inherit;font-size:12px;cursor:pointer}
+.attachment-action.camera{border-color:rgba(74,222,128,.45);background:rgba(74,222,128,.1);color:#bbf7d0}
+.attachment-action input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.attachment-list{display:grid;gap:8px;margin-top:11px}.attachment-empty{color:var(--txt3);font-size:11px}
+.attachment-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:var(--r3);background:rgba(255,255,255,.05)}
+.attachment-name{min-width:0;flex:1;overflow:hidden;color:var(--txt2);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.attachment-item button{padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.04);color:#cbd5e1;font:inherit;font-size:11px;cursor:pointer}.attachment-item button.remove{color:#fda4af}.attachment-pending{color:var(--gold);font-size:10px}
+.attachment-preview{min-height:240px;padding:16px;display:grid;place-items:center}.attachment-preview img{max-width:100%;max-height:72dvh;border-radius:12px;object-fit:contain}.attachment-preview iframe{width:100%;height:72dvh;border:0;border-radius:12px;background:#fff}
 .stats-section{margin-bottom:24px}.stats-section h3{font-size:13px;color:var(--txt3);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
 .holder-list{display:flex;flex-direction:column;gap:8px}
 .holder-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--glass2);border-radius:var(--r2);border:1px solid var(--border)}
@@ -229,7 +242,7 @@ body::before{content:'';position:fixed;top:-50%;left:-20%;width:60%;height:60%;
   <div class="hdr-inner">
     <div class="hdr-left">
       <span class="hdr-icon">🏦</span>
-      <div><div class="hdr-title">支票系統</div><div class="hdr-sub">蘊睿的流通管理</div></div>
+      <div><div class="hdr-title">支票系統</div><div class="hdr-sub">馭睿的流通管理</div></div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn-icon" id="btnSync" title="同步">
@@ -261,6 +274,7 @@ body::before{content:'';position:fixed;top:-50%;left:-20%;width:60%;height:60%;
   <div class="filter-tabs">
     <button class="filter-tab active" data-filter="all">全部</button>
     <button class="filter-tab" data-filter="⏳ 流通中">⏳ 流通中</button>
+    <button class="filter-tab" data-filter="📌 壓票中">📌 壓票中</button>
     <button class="filter-tab" data-filter="urgent">🔴 急</button>
     <button class="filter-tab" data-filter="✅ 已入帳">✅ 已入帳</button>
     <button class="filter-tab" data-filter="❌ 作廢">❌ 作廢</button>
@@ -304,11 +318,12 @@ body::before{content:'';position:fixed;top:-50%;left:-20%;width:60%;height:60%;
   <div class="sheet">
     <div class="m-hdr"><h2 id="modalTitle">新增支票</h2><button class="btn-close" id="btnModalClose">✕</button></div>
     <div class="m-body">
-      <input type="hidden" id="editRowIndex"/>
+      <input type="hidden" id="editCheckId"/>
       <input type="hidden" id="formStatus" value="⏳ 流通中"/>
       <div class="fg"><label>狀態</label>
         <div class="status-grid">
           <button type="button" class="status-btn active" data-status="⏳ 流通中">⏳ 流通中</button>
+          <button type="button" class="status-btn" data-status="📌 壓票中">📌 壓票中</button>
           <button type="button" class="status-btn" data-status="✅ 已入帳">✅ 已入帳</button>
           <button type="button" class="status-btn" data-status="❌ 作廢">❌ 作廢</button>
           <button type="button" class="status-btn" data-status="♻️收回流出">♻️ 收回</button>
@@ -334,11 +349,30 @@ body::before{content:'';position:fixed;top:-50%;left:-20%;width:60%;height:60%;
       <div class="fg"><label>兌現日期</label><input type="date" id="formCashDate"/></div>
       <div class="fg"><label>延後至 / 押票</label><input type="text" id="formDeferTo" placeholder="延後(押)、115/03/26(押)..."/></div>
       <div class="fg"><label>備註</label><textarea id="formNotes" placeholder="其他說明..."></textarea></div>
+      <section class="attachment-panel">
+        <strong>支票照片／掃描</strong>
+        <span class="attachment-sub">最多 3 個；照片會先在手機壓縮，亦支援 PDF</span>
+        <div class="attachment-actions">
+          <button class="attachment-action camera" id="cameraButton" type="button">📷 直接拍攝</button>
+          <label class="attachment-action">🖼️ 相簿／PDF<input id="attachmentInput" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"></label>
+          <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
+        </div>
+        <div id="attachmentList" class="attachment-list"></div>
+        <span id="attachmentHint" class="hint">新增時可先選照片，儲存支票後會自動上傳。</span>
+      </section>
     </div>
     <div class="m-foot">
       <button class="btn-s" id="btnDeleteCheck" style="display:none">🗑 刪除</button>
       <button class="btn-p" id="btnSaveCheck">💾 儲存</button>
     </div>
+  </div>
+</div>
+
+<!-- Attachment Preview -->
+<div class="overlay" id="attachmentModal">
+  <div class="sheet sheet-lg">
+    <div class="m-hdr"><h2 id="attachmentTitle">支票附件</h2><button class="btn-close" id="btnAttachmentClose">✕</button></div>
+    <div class="m-body attachment-preview" id="attachmentPreview"></div>
   </div>
 </div>
 
@@ -388,7 +422,7 @@ body::before{content:'';position:fixed;top:-50%;left:-20%;width:60%;height:60%;
         <p class="set-info" id="cacheInfo">目前無快取資料</p>
         <button class="btn-s" onclick="clearCache();showToast('🗑 快取已清除','info')" style="width:100%;margin-top:8px">🗑 清除快取</button>
       </div>
-      <div class="set-sec"><h3>關於</h3><p class="set-info">蘊睿的支票流通查詢系統 v2.0<br>由 Google Apps Script 提供服務<br>資料直接存取 Google Sheets（enraylien@gmail.com）</p></div>
+      <div class="set-sec"><h3>關於</h3><p class="set-info">馭睿支票管理系統 v3.0<br>GitHub Pages PWA＋Google Apps Script<br>支援永久 ID、相機、相簿、PDF 與附件管理</p></div>
     </div>
   </div>
 </div>

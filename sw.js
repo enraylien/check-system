@@ -1,9 +1,9 @@
 // =====================================================================
-// Service Worker - 蘊睿支票系統 PWA
+// Service Worker - 馭睿支票系統 PWA
 // 版本號更新會自動清除舊快取、更新 App
 // =====================================================================
 
-const CACHE_VERSION = 'v2.1';
+const CACHE_VERSION = 'v3.0.1';
 const CACHE_NAME = `check-system-${CACHE_VERSION}`;
 
 // 靜態資源清單（這些檔案會被快取，讓 App 離線可用）

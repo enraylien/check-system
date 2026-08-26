@@ -1,9 +1,10 @@
 // =====================================================================
-// 蘊睿的支票流通查詢系統 - 前端應用程式邏輯
+// 馭睿的支票流通查詢系統 - 前端應用程式邏輯
 // =====================================================================
 
 // ---- 設定 ----
 const CONFIG = {
+  DEFAULT_API_URL: 'https://script.google.com/macros/s/AKfycbwzuODIJLp6BR3Un_diZ_bvGr1Wp2vZHhZQnAQgjpRJrReoboqAw5xGasHc_pozg6rA/exec',
   API_URL_KEY: 'check_api_url',
   URGENT_DAYS_KEY: 'check_urgent_days',
   WARN_DAYS_KEY: 'check_warn_days',
@@ -12,7 +13,7 @@ const CONFIG = {
   CACHE_TTL: 5 * 60 * 1000, // 5 分鐘快取
   get urgentDays() { return parseInt(localStorage.getItem(this.URGENT_DAYS_KEY) || '7'); },
   get warnDays() { return parseInt(localStorage.getItem(this.WARN_DAYS_KEY) || '30'); },
-  get apiUrl() { return localStorage.getItem(this.API_URL_KEY) || ''; }
+  get apiUrl() { return localStorage.getItem(this.API_URL_KEY) || this.DEFAULT_API_URL; }
 };
 
 // ---- 應用程式狀態 ----
@@ -23,7 +24,9 @@ let appState = {
   currentSort: 'urgency',
   searchQuery: '',
   isLoading: false,
-  lastLoaded: null
+  lastLoaded: null,
+  currentCheck: null,
+  pendingAttachments: []
 };
 
 // =====================================================================
@@ -111,14 +114,24 @@ function bindEvents() {
     if (e.target === document.getElementById('checkModal')) closeModal();
   });
 
+  document.getElementById('cameraButton').addEventListener('click', () => {
+    document.getElementById('cameraInput').click();
+  });
+  document.getElementById('cameraInput').addEventListener('change', uploadSelectedAttachment);
+  document.getElementById('attachmentInput').addEventListener('change', uploadSelectedAttachment);
+  document.getElementById('btnAttachmentClose').addEventListener('click', closeAttachmentPreview);
+  document.getElementById('attachmentModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('attachmentModal')) closeAttachmentPreview();
+  });
+
   // 儲存支票
   document.getElementById('btnSaveCheck').addEventListener('click', saveCheck);
 
   // 刪除支票
   document.getElementById('btnDeleteCheck').addEventListener('click', () => {
-    const rowIndex = document.getElementById('editRowIndex').value;
-    if (rowIndex && confirm('確定要刪除這張支票嗎？')) {
-      deleteCheck(parseInt(rowIndex));
+    const checkId = document.getElementById('editCheckId').value;
+    if (checkId && confirm('確定要刪除這張支票嗎？（可由試算表備份還原）')) {
+      deleteCheck(checkId);
     }
   });
 
@@ -130,8 +143,8 @@ function bindEvents() {
   });
   document.getElementById('btnDetailEdit').addEventListener('click', () => {
     closeDetailModal();
-    const idx = document.getElementById('btnDetailEdit').dataset.rowIndex;
-    const check = appState.checks.find(c => c.rowIndex == idx);
+    const checkId = document.getElementById('btnDetailEdit').dataset.checkId;
+    const check = appState.checks.find(c => getCheckId(c) === checkId);
     if (check) openModal(check);
   });
 
@@ -395,8 +408,8 @@ function renderCheckList() {
   // 綁定卡片點擊
   list.querySelectorAll('.check-card').forEach(card => {
     card.addEventListener('click', () => {
-      const rowIndex = parseInt(card.dataset.rowIndex);
-      const check = appState.checks.find(c => c.rowIndex === rowIndex);
+      const checkId = card.dataset.checkId;
+      const check = appState.checks.find(c => getCheckId(c) === checkId);
       if (check) openDetailModal(check);
     });
   });
@@ -418,7 +431,7 @@ function renderCheckCard(check, idx) {
 
   return `
     <div class="check-card ${statusClass} ${urgencyClass}"
-         data-row-index="${check.rowIndex}"
+         data-check-id="${getCheckId(check)}"
          style="animation-delay: ${animDelay}ms">
       <div class="card-header">
         <div class="card-main-info">
@@ -532,13 +545,14 @@ function checkExpiryAlerts() {
 // =====================================================================
 function openModal(check = null) {
   const modal = document.getElementById('checkModal');
-  const form = document.getElementById('checkForm');
   const title = document.getElementById('modalTitle');
   const deleteBtn = document.getElementById('btnDeleteCheck');
 
   // 重置表單
-  form.reset();
-  document.getElementById('editRowIndex').value = '';
+  modal.querySelectorAll('input:not([type="hidden"]), textarea').forEach(field => { field.value = ''; });
+  document.getElementById('editCheckId').value = '';
+  appState.currentCheck = check;
+  appState.pendingAttachments = [];
   document.getElementById('amountCNDisplay').textContent = '';
   document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
   document.querySelector('[data-status="⏳ 流通中"]').classList.add('active');
@@ -548,7 +562,7 @@ function openModal(check = null) {
     // 編輯模式
     title.textContent = '編輯支票';
     deleteBtn.style.display = 'block';
-    document.getElementById('editRowIndex').value = check.rowIndex;
+    document.getElementById('editCheckId').value = getCheckId(check);
 
     // 填入資料
     document.getElementById('formStatus').value = check.status;
@@ -580,6 +594,7 @@ function openModal(check = null) {
   }
 
   updatePayeeDatalist();
+  renderAttachmentEditor(check);
   openOverlay('checkModal');
 }
 
@@ -597,7 +612,7 @@ async function saveCheck() {
     return;
   }
 
-  const rowIndex = document.getElementById('editRowIndex').value;
+  const checkId = document.getElementById('editCheckId').value;
   const status = document.getElementById('formStatus').value;
   const dueDate = document.getElementById('formDueDate').value;
 
@@ -629,9 +644,9 @@ async function saveCheck() {
   btn.textContent = '儲存中...';
 
   try {
-    const body = rowIndex
-      ? { action: 'update', rowIndex: parseInt(rowIndex), check: checkData }
-      : { action: 'add', check: checkData };
+    const body = checkId
+      ? { action: 'update', data: { ...checkData, id: checkId } }
+      : { action: 'add', data: checkData };
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -642,8 +657,18 @@ async function saveCheck() {
 
     const result = await response.json();
     if (result.success) {
+      const savedCheckId = result.checkId || checkId;
+      let uploadResult = { uploaded: 0, failed: 0 };
+      if (savedCheckId && appState.pendingAttachments.length) {
+        btn.textContent = '照片上傳中...';
+        uploadResult = await uploadPendingAttachments(savedCheckId, appState.pendingAttachments);
+      }
       closeModal();
-      showToast(`✅ ${rowIndex ? '支票已更新' : '支票已新增'}`, 'success');
+      showToast(
+        `✅ ${checkId ? '支票已更新' : '支票已新增'}${uploadResult.uploaded ? `，已上傳 ${uploadResult.uploaded} 個附件` : ''}${uploadResult.failed ? `；${uploadResult.failed} 個附件失敗` : ''}`,
+        uploadResult.failed ? 'warning' : 'success',
+        uploadResult.failed ? 6000 : 3000
+      );
       clearCache();
       await loadChecks(true);
     } else {
@@ -660,7 +685,7 @@ async function saveCheck() {
 // =====================================================================
 // 刪除支票
 // =====================================================================
-async function deleteCheck(rowIndex) {
+async function deleteCheck(checkId) {
   const apiUrl = CONFIG.apiUrl;
   if (!apiUrl) {
     showToast('❌ 請先設定 API 網址', 'error');
@@ -672,7 +697,7 @@ async function deleteCheck(rowIndex) {
       method: 'POST',
       mode: 'cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'delete', rowIndex })
+      body: JSON.stringify({ action: 'delete', data: { id: checkId } })
     });
     const result = await response.json();
     if (result.success) {
@@ -686,6 +711,215 @@ async function deleteCheck(rowIndex) {
   } catch (err) {
     showToast(`❌ 刪除失敗: ${err.message}`, 'error');
   }
+}
+
+// =====================================================================
+// 支票照片／掃描附件
+// =====================================================================
+function renderAttachmentEditor(check) {
+  const persisted = (check && check.attachments) || [];
+  const pending = appState.pendingAttachments;
+  const list = document.getElementById('attachmentList');
+  const hint = document.getElementById('attachmentHint');
+  const total = persisted.length + pending.length;
+
+  list.innerHTML = attachmentItemsHtml(persisted, true) + pendingAttachmentItemsHtml(pending);
+  hint.textContent = total
+    ? `目前 ${total}/3 個附件${pending.length ? `；${pending.length} 個會在儲存後上傳` : ''}`
+    : '新增時可先選照片，儲存支票後會自動上傳。';
+  document.getElementById('cameraButton').disabled = total >= 3;
+  document.getElementById('cameraInput').disabled = total >= 3;
+  document.getElementById('attachmentInput').disabled = total >= 3;
+  bindAttachmentButtons(list, check, true);
+  bindPendingAttachmentButtons(list);
+}
+
+function attachmentItemsHtml(attachments, editable) {
+  if (!attachments.length) return '';
+  return attachments.map(item => {
+    const kind = item.mimeType === 'application/pdf' ? '📄 PDF' : '🖼️ 照片';
+    return `<div class="attachment-item" data-file-id="${escapeHtml(item.fileId)}">
+      <span>${kind}</span><span class="attachment-name">${escapeHtml(item.name || '支票附件')}</span>
+      <button type="button" data-action="preview">查看</button>
+      ${editable ? '<button class="remove" type="button" data-action="remove">移除</button>' : ''}
+    </div>`;
+  }).join('');
+}
+
+function pendingAttachmentItemsHtml(attachments) {
+  if (!attachments.length && !((appState.currentCheck && appState.currentCheck.attachments) || []).length) {
+    return '<div class="attachment-empty">尚未選擇照片或掃描檔</div>';
+  }
+  return attachments.map((item, index) => {
+    const kind = item.mimeType === 'application/pdf' ? '📄 PDF' : '🖼️ 照片';
+    return `<div class="attachment-item" data-pending-index="${index}">
+      <span>${kind}</span><span class="attachment-name">${escapeHtml(item.name)}</span>
+      <span class="attachment-pending">待儲存</span>
+      <button type="button" data-action="preview-pending">查看</button>
+      <button class="remove" type="button" data-action="remove-pending">移除</button>
+    </div>`;
+  }).join('');
+}
+
+function bindAttachmentButtons(container, check, editable) {
+  if (!container || !check) return;
+  const checkId = getCheckId(check);
+  container.querySelectorAll('[data-action="preview"]').forEach(button => {
+    button.addEventListener('click', () => previewAttachment(checkId, button.closest('[data-file-id]').dataset.fileId));
+  });
+  if (!editable) return;
+  container.querySelectorAll('[data-action="remove"]').forEach(button => {
+    button.addEventListener('click', () => removeAttachment(checkId, button.closest('[data-file-id]').dataset.fileId));
+  });
+}
+
+function bindPendingAttachmentButtons(container) {
+  container.querySelectorAll('[data-action="preview-pending"]').forEach(button => {
+    button.addEventListener('click', () => previewPendingAttachment(Number(button.closest('[data-pending-index]').dataset.pendingIndex)));
+  });
+  container.querySelectorAll('[data-action="remove-pending"]').forEach(button => {
+    button.addEventListener('click', () => {
+      appState.pendingAttachments.splice(Number(button.closest('[data-pending-index]').dataset.pendingIndex), 1);
+      renderAttachmentEditor(appState.currentCheck);
+    });
+  });
+}
+
+async function uploadSelectedAttachment(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  try {
+    const persistedCount = ((appState.currentCheck && appState.currentCheck.attachments) || []).length;
+    if (persistedCount + appState.pendingAttachments.length >= 3) throw new Error('每張支票最多 3 個附件');
+    showToast('正在處理附件…', 'info', 5000);
+    appState.pendingAttachments.push(await prepareAttachment(file));
+    renderAttachmentEditor(appState.currentCheck);
+    showToast('照片已選擇，儲存支票後會自動上傳', 'success');
+  } catch (error) {
+    showToast(`❌ 附件處理失敗：${error.message}`, 'error', 6000);
+  } finally {
+    event.target.value = '';
+  }
+}
+
+async function uploadPendingAttachments(checkId, attachments) {
+  let uploaded = 0;
+  let failed = 0;
+  for (const attachment of attachments) {
+    try {
+      await apiPost('uploadAttachment', { checkId, attachment });
+      uploaded++;
+    } catch (error) {
+      console.error('附件上傳失敗:', error);
+      failed++;
+    }
+  }
+  return { uploaded, failed };
+}
+
+async function prepareAttachment(file) {
+  if (file.type === 'application/pdf') {
+    if (file.size > 6 * 1024 * 1024) throw new Error('PDF 必須小於 6 MB');
+    return { name: file.name, mimeType: file.type, base64: await readFileAsBase64(file) };
+  }
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error('只允許 JPG、PNG、WebP 或 PDF');
+  return compressImage(file, 1600, 0.82);
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(new Error('讀取檔案失敗'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function compressImage(file, maxSide, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('讀取照片失敗'));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error('照片格式無法讀取'));
+      image.onload = () => {
+        const ratio = Math.min(1, maxSide / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * ratio));
+        canvas.height = Math.max(1, Math.round(image.height * ratio));
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+        const base64 = canvas.toDataURL('image/jpeg', quality).split(',')[1] || '';
+        if (Math.ceil(base64.length * 0.75) > 6 * 1024 * 1024) return reject(new Error('壓縮後照片仍超過 6 MB'));
+        resolve({ name: file.name.replace(/\.[^.]+$/, '') + '.jpg', mimeType: 'image/jpeg', base64 });
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function previewPendingAttachment(index) {
+  const attachment = appState.pendingAttachments[index];
+  if (!attachment) return;
+  showAttachmentPreview(attachment.name, attachment.mimeType, `data:${attachment.mimeType};base64,${attachment.base64}`);
+}
+
+async function previewAttachment(checkId, fileId) {
+  document.getElementById('attachmentTitle').textContent = '讀取附件中…';
+  document.getElementById('attachmentPreview').innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+  openOverlay('attachmentModal');
+  try {
+    const result = await apiPost('getAttachment', { checkId, fileId });
+    showAttachmentPreview(result.name, result.mimeType, result.dataUrl);
+  } catch (error) {
+    document.getElementById('attachmentPreview').innerHTML = `<div class="attachment-empty">附件讀取失敗：${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function showAttachmentPreview(name, mimeType, dataUrl) {
+  document.getElementById('attachmentTitle').textContent = name || '支票附件';
+  document.getElementById('attachmentPreview').innerHTML = mimeType === 'application/pdf'
+    ? `<iframe title="PDF 掃描" src="${dataUrl}"></iframe>`
+    : `<img alt="支票照片" src="${dataUrl}">`;
+  openOverlay('attachmentModal');
+}
+
+function closeAttachmentPreview() {
+  closeOverlay('attachmentModal');
+  document.getElementById('attachmentPreview').innerHTML = '';
+}
+
+async function removeAttachment(checkId, fileId) {
+  if (!checkId || !confirm('確定要移除這個附件嗎？移除後會放入 Google Drive 垃圾桶。')) return;
+  try {
+    const result = await apiPost('removeAttachment', { checkId, fileId });
+    if (appState.currentCheck) appState.currentCheck.attachments = result.attachments || [];
+    renderAttachmentEditor(appState.currentCheck);
+    clearCache();
+    await loadChecks(true);
+    showToast('附件已移到 Drive 垃圾桶', 'success');
+  } catch (error) {
+    showToast(`❌ 移除失敗：${error.message}`, 'error', 6000);
+  }
+}
+
+async function apiPost(action, data) {
+  const response = await fetch(CONFIG.apiUrl, {
+    method: 'POST',
+    mode: 'cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action, data })
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error || '操作失敗');
+  return result;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
 }
 
 // =====================================================================
@@ -752,10 +986,15 @@ function openDetailModal(check) {
         <div class="detail-label">備註</div>
         <div class="detail-value">${check.notes}</div>
       </div>` : ''}
+      <div class="detail-item full-width">
+        <div class="detail-label">支票照片／掃描</div>
+        <div id="detailAttachmentList">${attachmentItemsHtml(check.attachments || [], false)}</div>
+      </div>
     </div>
   `;
 
-  document.getElementById('btnDetailEdit').dataset.rowIndex = check.rowIndex;
+  document.getElementById('btnDetailEdit').dataset.checkId = getCheckId(check);
+  bindAttachmentButtons(document.getElementById('detailAttachmentList'), check, false);
   openOverlay('detailModal');
 }
 
@@ -914,8 +1153,8 @@ function openExpiringPage() {
   setTimeout(() => {
     content.querySelectorAll('.check-card').forEach(card => {
       card.addEventListener('click', () => {
-        const rowIndex = parseInt(card.dataset.rowIndex);
-        const check = appState.checks.find(c => c.rowIndex === rowIndex);
+        const checkId = card.dataset.checkId;
+        const check = appState.checks.find(c => getCheckId(c) === checkId);
         if (check) { closeOverlay('expiringPage'); openDetailModal(check); }
       });
     });
@@ -1075,11 +1314,16 @@ function updatePayeeDatalist() {
   document.getElementById('holderList').innerHTML = holders.map(h => `<option value="${h}">`).join('');
 }
 
+function getCheckId(check) {
+  return String((check && (check.id || check.checkId)) || '');
+}
+
 // =====================================================================
 // 徽章 / 樣式輔助
 // =====================================================================
 function getStatusClass(status) {
   if (status === '⏳ 流通中') return 'status-circulating';
+  if (status === '📌 壓票中') return 'status-pressed';
   if (status === '✅ 已入帳' || status.includes('已入帳')) return 'status-done';
   if (status === '❌ 作廢') return 'status-void';
   if (status.includes('收回') || status.includes('♻️')) return 'status-recall';
@@ -1097,6 +1341,7 @@ function getUrgencyClass(days, status) {
 
 function getStatusBadge(status) {
   if (status === '⏳ 流通中') return `<span class="status-badge badge-circulating">${status}</span>`;
+  if (status === '📌 壓票中') return `<span class="status-badge badge-pressed">${status}</span>`;
   if (status === '✅ 已入帳' || status.includes('已入帳')) return `<span class="status-badge badge-done">${status}</span>`;
   if (status === '❌ 作廢') return `<span class="status-badge badge-void">${status}</span>`;
   if (status.includes('收回') || status.includes('♻️')) return `<span class="status-badge badge-recall">${status}</span>`;
