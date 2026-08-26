@@ -40,7 +40,8 @@ async function initApp() {
   // 註冊 Service Worker
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('./sw.js');
+      const registration = await navigator.serviceWorker.register('./sw.js?v=3.0.1', { updateViaCache: 'none' });
+      await registration.update();
     } catch (e) {
       console.log('SW 註冊失敗:', e);
     }
