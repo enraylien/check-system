@@ -40,7 +40,7 @@ async function initApp() {
   // 註冊 Service Worker
   if ('serviceWorker' in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register('./sw.js?v=3.0.1', { updateViaCache: 'none' });
+      const registration = await navigator.serviceWorker.register('./sw.js?v=3.0.2', { updateViaCache: 'none' });
       await registration.update();
     } catch (e) {
       console.log('SW 註冊失敗:', e);
@@ -145,8 +145,9 @@ function bindEvents() {
   document.getElementById('btnDetailEdit').addEventListener('click', () => {
     closeDetailModal();
     const checkId = document.getElementById('btnDetailEdit').dataset.checkId;
-    const check = appState.checks.find(c => getCheckId(c) === checkId);
+    const check = findCheckById(checkId);
     if (check) openModal(check);
+    else recoverInvalidCheckSelection();
   });
 
   // 底部導航
@@ -233,17 +234,23 @@ async function loadChecks(forceRefresh = false) {
 
   setLoading(true);
   try {
-    const response = await fetch(`${apiUrl}?action=getAll`, {
-      method: 'GET',
-      mode: 'cors',
-      cache: 'no-cache'
-    });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
+    let result;
+    try {
+      result = await fetchChecksFromApi(apiUrl);
+    } catch (error) {
+      // 舊版手機可能仍保存不含永久 ID 的測試 API 網址；僅在確認
+      // 回傳資料缺少 ID 時，才自動改回正式 API，避免誤開第一張支票。
+      if (error.code === 'INVALID_CHECK_IDS' && apiUrl !== CONFIG.DEFAULT_API_URL) {
+        result = await fetchChecksFromApi(CONFIG.DEFAULT_API_URL);
+        localStorage.setItem(CONFIG.API_URL_KEY, CONFIG.DEFAULT_API_URL);
+        showToast('⚠️ 已淘汰舊資料來源，改用正式支票資料', 'warning', 5000);
+      } else {
+        throw error;
+      }
+    }
 
     if (result.success) {
-      appState.checks = result.data || [];
+      appState.checks = result.data;
       setCachedData(appState.checks);
       applyFiltersAndSort();
       updateStats();
@@ -268,6 +275,26 @@ async function loadChecks(forceRefresh = false) {
   } finally {
     setLoading(false);
   }
+}
+
+async function fetchChecksFromApi(apiUrl) {
+  const response = await fetch(`${apiUrl}?action=getAll`, {
+    method: 'GET',
+    mode: 'cors',
+    cache: 'no-cache'
+  });
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error || '載入失敗');
+
+  const checks = Array.isArray(result.data) ? result.data : [];
+  if (!hasValidUniqueCheckIds(checks)) {
+    const error = new Error('支票資料缺少永久 ID，已停止顯示以避免開啟或編輯錯誤支票');
+    error.code = 'INVALID_CHECK_IDS';
+    throw error;
+  }
+  return { ...result, data: checks };
 }
 
 // =====================================================================
@@ -410,8 +437,9 @@ function renderCheckList() {
   list.querySelectorAll('.check-card').forEach(card => {
     card.addEventListener('click', () => {
       const checkId = card.dataset.checkId;
-      const check = appState.checks.find(c => getCheckId(c) === checkId);
+      const check = findCheckById(checkId);
       if (check) openDetailModal(check);
+      else recoverInvalidCheckSelection();
     });
   });
 }
@@ -1155,8 +1183,9 @@ function openExpiringPage() {
     content.querySelectorAll('.check-card').forEach(card => {
       card.addEventListener('click', () => {
         const checkId = card.dataset.checkId;
-        const check = appState.checks.find(c => getCheckId(c) === checkId);
+        const check = findCheckById(checkId);
         if (check) { closeOverlay('expiringPage'); openDetailModal(check); }
+        else recoverInvalidCheckSelection();
       });
     });
   }, 100);
@@ -1221,7 +1250,13 @@ function getCachedData() {
     if (!time) return null;
     if (Date.now() - parseInt(time) > CONFIG.CACHE_TTL) return null;
     const data = localStorage.getItem(CONFIG.CACHE_KEY);
-    return data ? JSON.parse(data) : null;
+    const parsed = data ? JSON.parse(data) : null;
+    if (parsed && !hasValidUniqueCheckIds(parsed)) {
+      localStorage.removeItem(CONFIG.CACHE_KEY);
+      localStorage.removeItem(CONFIG.CACHE_TIME_KEY);
+      return null;
+    }
+    return parsed;
   } catch (e) { return null; }
 }
 
@@ -1317,6 +1352,25 @@ function updatePayeeDatalist() {
 
 function getCheckId(check) {
   return String((check && (check.id || check.checkId)) || '');
+}
+
+function hasValidUniqueCheckIds(checks) {
+  if (!Array.isArray(checks)) return false;
+  const ids = checks.map(getCheckId);
+  return ids.every(Boolean) && new Set(ids).size === ids.length;
+}
+
+function findCheckById(checkId) {
+  if (!checkId) return null;
+  const matches = appState.checks.filter(check => getCheckId(check) === String(checkId));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function recoverInvalidCheckSelection() {
+  showToast('⚠️ 支票識別資料已過期，正在重新載入正式資料', 'warning', 5000);
+  closeDetailModal();
+  clearCache();
+  loadChecks(true);
 }
 
 // =====================================================================
