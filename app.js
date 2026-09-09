@@ -40,7 +40,7 @@ async function initApp() {
   // 註冊 Service Worker
   if ('serviceWorker' in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register('./sw.js?v=3.0.2', { updateViaCache: 'none' });
+      const registration = await navigator.serviceWorker.register('./sw.js?v=3.0.3', { updateViaCache: 'none' });
       await registration.update();
     } catch (e) {
       console.log('SW 註冊失敗:', e);
@@ -323,6 +323,9 @@ function applyFiltersAndSort() {
     case '⏳ 流通中':
       result = result.filter(c => c.status === '⏳ 流通中');
       break;
+    case 'pressed':
+      result = result.filter(c => isPressedStatus(c.status));
+      break;
     case '✅ 已入帳':
       result = result.filter(c => c.status === '✅ 已入帳');
       break;
@@ -504,12 +507,12 @@ function renderCheckCard(check, idx) {
 function updateStats() {
   const today = new Date(); today.setHours(0,0,0,0);
 
-  let urgent = 0, warning = 0, circulating = 0, overdue = 0, totalAmt = 0;
+  let urgent = 0, warning = 0, circulating = 0, overdue = 0;
+  const amounts = calculateOutstandingAmounts(appState.checks);
 
   appState.checks.forEach(c => {
     if (c.status !== '⏳ 流通中') return;
     circulating++;
-    totalAmt += parseAmount(c.amount);
 
     const due = parseDate(c.dueDate);
     if (due) {
@@ -524,8 +527,23 @@ function updateStats() {
   document.getElementById('warningCount').textContent = warning;
   document.getElementById('circulatingCount').textContent = circulating;
   document.getElementById('overdueCount').textContent = overdue;
-  document.getElementById('circulatingAmount').textContent =
-    totalAmt > 0 ? `NT$ ${totalAmt.toLocaleString('zh-TW')}` : 'NT$ 0';
+  document.getElementById('outstandingAmount').textContent = formatSummaryAmount(amounts.outstanding);
+  document.getElementById('pressedAmount').textContent = formatSummaryAmount(amounts.pressed);
+  document.getElementById('circulatingAmount').textContent = formatSummaryAmount(amounts.circulating);
+}
+
+function calculateOutstandingAmounts(checks) {
+  return checks.reduce((totals, check) => {
+    const amount = parseAmount(check.amount);
+    if (check.status === '⏳ 流通中') totals.circulating += amount;
+    if (isPressedStatus(check.status)) totals.pressed += amount;
+    totals.outstanding = totals.circulating + totals.pressed;
+    return totals;
+  }, { outstanding: 0, pressed: 0, circulating: 0 });
+}
+
+function formatSummaryAmount(amount) {
+  return `NT$ ${amount.toLocaleString('zh-TW')}`;
 }
 
 // =====================================================================
@@ -618,6 +636,7 @@ function openModal(check = null) {
     // 新增模式
     title.textContent = '新增支票';
     deleteBtn.style.display = 'none';
+    document.getElementById('formCheckNo').value = 'NO. ';
     // 預設今天開票
     document.getElementById('formIssueDate').value = getTodayISO();
   }
@@ -655,7 +674,7 @@ async function saveCheck() {
 
   const checkData = {
     status,
-    checkNo: document.getElementById('formCheckNo').value,
+    checkNo: normalizeCheckNumber(document.getElementById('formCheckNo').value),
     dueDate: formatDateForSheet(dueDate),
     payee: document.getElementById('formPayee').value,
     amount,
@@ -1112,7 +1131,7 @@ function openStatsPage() {
       <div class="holder-list">
         ${Object.entries(statusCount).map(([status, count]) => `
           <div class="holder-item">
-            <span class="holder-name">${status}</span>
+            <span class="holder-name">${displayStatus(status)}</span>
             <div class="holder-info">
               <span class="holder-amount" style="font-size:18px;">${count}</span>
               <span class="holder-count">張</span>
@@ -1378,7 +1397,7 @@ function recoverInvalidCheckSelection() {
 // =====================================================================
 function getStatusClass(status) {
   if (status === '⏳ 流通中') return 'status-circulating';
-  if (status === '📌 壓票中') return 'status-pressed';
+  if (isPressedStatus(status)) return 'status-pressed';
   if (status === '✅ 已入帳' || status.includes('已入帳')) return 'status-done';
   if (status === '❌ 作廢') return 'status-void';
   if (status.includes('收回') || status.includes('♻️')) return 'status-recall';
@@ -1396,11 +1415,19 @@ function getUrgencyClass(days, status) {
 
 function getStatusBadge(status) {
   if (status === '⏳ 流通中') return `<span class="status-badge badge-circulating">${status}</span>`;
-  if (status === '📌 壓票中') return `<span class="status-badge badge-pressed">${status}</span>`;
+  if (isPressedStatus(status)) return `<span class="status-badge badge-pressed">${displayStatus(status)}</span>`;
   if (status === '✅ 已入帳' || status.includes('已入帳')) return `<span class="status-badge badge-done">${status}</span>`;
   if (status === '❌ 作廢') return `<span class="status-badge badge-void">${status}</span>`;
   if (status.includes('收回') || status.includes('♻️')) return `<span class="status-badge badge-recall">${status}</span>`;
   return `<span class="status-badge badge-done">${status}</span>`;
+}
+
+function isPressedStatus(status) {
+  return status === '📌 壓票中' || status === '📌 押票中';
+}
+
+function displayStatus(status) {
+  return isPressedStatus(status) ? '📌 押票中' : status;
 }
 
 function getDueBadge(days, status) {
@@ -1480,6 +1507,11 @@ function parseAmount(amtStr) {
   const s = String(amtStr).replace(/[NT$,，\s]/g, '');
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
+}
+
+function normalizeCheckNumber(value) {
+  const checkNumber = String(value || '').trim();
+  return /^NO\.?$/i.test(checkNumber) ? '' : checkNumber;
 }
 
 function formatAmount(amtStr) {

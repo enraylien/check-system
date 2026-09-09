@@ -3,7 +3,7 @@
 // 版本號更新會自動清除舊快取、更新 App
 // =====================================================================
 
-const CACHE_VERSION = 'v3.0.2';
+const CACHE_VERSION = 'v3.0.3';
 const CACHE_NAME = `check-system-${CACHE_VERSION}`;
 
 // 靜態資源清單（這些檔案會被快取，讓 App 離線可用）
